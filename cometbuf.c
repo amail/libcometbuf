@@ -3,6 +3,7 @@
 struct cb_attr {
 	unsigned int tail, head, size;
 	unsigned int oflag;
+	unsigned long page_size;
 	void *address;
 };
 
@@ -10,8 +11,15 @@ cbd_t cb_open(int length, char *template, unsigned int oflag)
 {
 	cb_attr *buffer;
 	int mmap_fd, dump_fd;
-	unsigned long block_size;
+	unsigned long page_size;
 	void *addr;
+
+	/* check page size */
+	page_size = sysconf(_SC_PAGESIZE);
+	if (page_size <= 0 || length % page_size != 0 || sizeof(cb_attr) > page_size) {
+		perror("page size");
+		return -1;
+	}
 
 	/* create temp file */
 	mmap_fd = mkstemp(template);
@@ -25,64 +33,51 @@ cbd_t cb_open(int length, char *template, unsigned int oflag)
 		return -1;
 	}
 
-	if (ftruncate(mmap_fd, buffer->size) < 0) {
+	if (ftruncate(mmap_fd, length + page_size) < 0) {
 		perror("ftruncate");
 		return -1;
 	}
 
-	/* check requested size with block size */
-	block_size = cb_block_size(template);
-	if (block_size <= 0 || length % block_size != 0) {
-		perror("block size");
-		return -1;
-	}
-
-	/* allocate buffer descriptor */
-	buffer = valloc(sizeof(cb_attr));
-	if (buffer <= 0) {
-		perror("valloc");
-		return -1;
-	}
-	if (buffer != memset(buffer, 0, sizeof(cb_attr))) {
-		perror("memset");
-		return -1;
-	}
-	buffer->size = length;
-	buffer->oflag = oflag;
-
 	/* mmap */
-	buffer->address = mmap(NULL, buffer->size, PROT_WRITE, MAP_FIXED | MAP_SHARED, mmap_fd, 0);
-	if (buffer->address < 0) {
+	addr = mmap(NULL, buffer->size + page_size, PROT_WRITE, MAP_FIXED | MAP_SHARED, mmap_fd, 0);
+	if (addr < 0) {
 		perror("mmap");
 		return -1;
 	}
 
-	/* use automatic wrapaound */
+	/* set buffer descriptor attributes */
+	buffer = addr;
+	buffer->address = addr + page_size;
+	buffer->size = length;
+	buffer->page_size = page_size;
+	buffer->oflag = oflag;
+
+	/* use automatic wrap around */
 	if (!(CB_FIXED & buffer->oflag)) {
-		addr = mmap(buffer->address + buffer->size, buffer->size, PROT_WRITE, MAP_FIXED | MAP_SHARED, mmap_fd, 0);
+		addr = mmap(buffer->address + buffer->size, buffer->size, PROT_WRITE, MAP_FIXED | MAP_SHARED, mmap_fd, page_size);
 		if (addr != buffer->address + buffer->size) {
 			perror("mmap");
 			return -1;
 		}
 	}
 
+	/* clean up */
+	addr = 0;
 	close(mmap_fd);
-
-	/* clear memory */
-	if (buffer->address != memset(buffer->address, 0, buffer->size)) {
-		perror("memset");
-		return -1;
-	}
 
 	/* madvise */
 	if (0 < madvise(buffer->address, buffer->size, MADV_SEQUENTIAL)) {
-		perror("madvice");
+		perror("madvise");
 	}
 
 	/* lock memory to avoid swapping*/
 	if (CB_LOCKED & buffer->oflag) {
 		if (0 < mlockall(MCL_CURRENT | MCL_FUTURE)) {
 			perror("mlockall");
+		}
+	} else {
+		if (mlock(buffer, page_size) < 0) {
+			perror("mlock");
 		}
 	}
 
@@ -129,8 +124,15 @@ int cb_head_adv(cbd_t cbdes, unsigned long bytes)
 	cb_attr *buffer = cbdes;
 
 	if (CB_PERSISTANT & buffer->oflag) {
+		/* sync buffer body */
 		if (msync(buffer->address + buffer->head, bytes, MS_SYNC) < 0) {
-			perror("msync");
+			perror("msync buffer");
+			return -1;
+		}
+
+		/* sync buffer header */
+		if (msync(buffer, buffer->page_size, MS_SYNC) < 0) {
+			perror("msync header");
 			return -1;
 		}
 	}
@@ -170,8 +172,15 @@ int cb_sync(cbd_t cbdes)
 {
 	cb_attr *buffer = cbdes;
 
+	/* sync buffer body */
 	if (msync(buffer->address + buffer->tail, buffer->head - buffer->tail, MS_SYNC) < 0) {
-		perror("msync");
+		perror("msync buffer");
+		return -1;
+	}
+
+	/* sync buffer header */
+	if (msync(buffer, buffer->page_size, MS_SYNC) < 0) {
+		perror("msync header");
 		return -1;
 	}
 
