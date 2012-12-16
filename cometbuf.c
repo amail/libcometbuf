@@ -97,8 +97,12 @@ int cb_free(cbd_t cbdes)
 		perror("memset");
 	}
 
+	buffer->head = 0;
+	buffer->tail = 0;
+	buffer->address = 0;
+
 	munlockall();
-	munmap(buffer->address, buffer->size);
+	munmap(buffer, buffer->size + buffer->page_size);
 	
 	free(buffer);
 
