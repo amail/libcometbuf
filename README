@@ -1,0 +1,10 @@
+libcometbuf -- a library for creating circular buffers
+
+BACKLOG
+ * Implement CB_FIXED
+ * Check if full
+ * Dump to file when full
+ * mq_open flags?
+ * Try it!
+ * Create man pages for every function
+ * Better Makefile
