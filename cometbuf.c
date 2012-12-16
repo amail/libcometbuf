@@ -124,11 +124,20 @@ void *cb_tail_addr(cbd_t cbdes)
 	return buffer->address + buffer->tail;	
 }
 
-void cb_head_adv(cbd_t cbdes, unsigned long bytes)
+int cb_head_adv(cbd_t cbdes, unsigned long bytes)
 {
 	cb_attr *buffer = cbdes;
 
+	if (CB_PERSISTANT & buffer->oflag) {
+		if (msync(buffer->address + buffer->head, bytes, MS_SYNC) < 0) {
+			perror("msync");
+			return -1;
+		}
+	}
+
 	buffer->head += bytes;
+
+	return 0;
 }
 
 void cb_tail_adv(cbd_t cbdes, unsigned long bytes)

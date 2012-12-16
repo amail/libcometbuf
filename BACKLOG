@@ -1,5 +1,6 @@
 BACKLOG
- * Flush to file
+ * Save cb_attr, add to beginning of buffer?
+ * Flush to file when buffer overflow
  * mq_open flags?
  * Try it!
  * Create man pages for every function

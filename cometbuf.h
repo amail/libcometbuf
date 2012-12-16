@@ -22,7 +22,7 @@ cbd_t cb_open(int length, char *template, unsigned int oflag);
 int cb_free(cbd_t cbdes);
 void *cb_head_addr(cbd_t cbdes);
 void *cb_tail_addr(cbd_t cbdes);
-void cb_head_adv(cbd_t cbdes, unsigned long bytes);
+int cb_head_adv(cbd_t cbdes, unsigned long bytes);
 void cb_tail_adv(cbd_t cbdes, unsigned long bytes);
 unsigned long cb_used_bytes(cbd_t cbdes);
 unsigned long cb_unused_bytes(cbd_t cbdes);
