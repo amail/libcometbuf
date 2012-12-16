@@ -6,7 +6,7 @@ struct cb_attr {
 	void *address;
 };
 
-cbd_t cb_open(int size, char *template, unsigned int oflag)
+cbd_t cb_open(int length, char *template, unsigned int oflag)
 {
 	cb_attr *buffer;
 	int mmap_fd, dump_fd;
@@ -32,7 +32,7 @@ cbd_t cb_open(int size, char *template, unsigned int oflag)
 
 	/* check requested size with block size */
 	block_size = cb_block_size(template);
-	if (block_size <= 0 || size % block_size != 0) {
+	if (block_size <= 0 || length % block_size != 0) {
 		perror("block size");
 		return -1;
 	}
@@ -47,7 +47,7 @@ cbd_t cb_open(int size, char *template, unsigned int oflag)
 		perror("memset");
 		return -1;
 	}
-	buffer->size = size;
+	buffer->size = length;
 	buffer->oflag = oflag;
 
 	/* mmap */
@@ -124,18 +124,18 @@ void *cb_tail_addr(cbd_t cbdes)
 	return buffer->address + buffer->tail;	
 }
 
-void cb_head_adv(cbd_t cbdes, unsigned long count)
+void cb_head_adv(cbd_t cbdes, unsigned long bytes)
 {
 	cb_attr *buffer = cbdes;
 
-	buffer->head += count;
+	buffer->head += bytes;
 }
 
-void cb_tail_adv(cbd_t cbdes, unsigned long count)
+void cb_tail_adv(cbd_t cbdes, unsigned long bytes)
 {
 	cb_attr *buffer = cbdes;
 
-	buffer->tail += count;	
+	buffer->tail += bytes;	
 
 	if (buffer->tail >= buffer->size) {
 		buffer->head -= buffer->size;
@@ -148,6 +148,18 @@ unsigned long cb_available_bytes(cbd_t cbdes)
 	cb_attr *buffer = cbdes;
 
 	return buffer->size - (buffer->head - buffer->tail);
+}
+
+int cb_sync(cbd_t cbdes)
+{
+	cb_attr *buffer = cbdes;
+
+	if (msync(buffer->address + buffer->tail, buffer->head - buffer->tail, MS_SYNC) < 0) {
+		perror("msync");
+		return -1;
+	}
+
+	return 0;
 }
 
 static unsigned long cb_block_size(char *path)

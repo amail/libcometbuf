@@ -18,13 +18,14 @@ typedef struct cb_attr cb_attr;
 #define CB_LOCKED 2
 #define CB_PERSISTANT 4
 
-cbd_t cb_open(int size, char *path, unsigned int oflag);
+cbd_t cb_open(int length, char *template, unsigned int oflag);
 int cb_free(cbd_t cbdes);
 void *cb_head_addr(cbd_t cbdes);
 void *cb_tail_addr(cbd_t cbdes);
-void cb_head_adv(cbd_t cbdes, unsigned long count);
-void cb_tail_adv(cbd_t cbdes, unsigned long count);
+void cb_head_adv(cbd_t cbdes, unsigned long bytes);
+void cb_tail_adv(cbd_t cbdes, unsigned long bytes);
 unsigned long cb_available_bytes(cbd_t cbdes);
+int cb_sync(cbd_t cbdes);
 
 static unsigned long cb_block_size(char *path);
 
