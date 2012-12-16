@@ -58,7 +58,7 @@ cbd_t cb_open(int length, char *template, unsigned int oflag)
 	}
 
 	/* use automatic wrapaound */
-	if (!(CB_FIXED & oflag)) {
+	if (!(CB_FIXED & buffer->oflag)) {
 		addr = mmap(buffer->address + buffer->size, buffer->size, PROT_WRITE, MAP_FIXED | MAP_SHARED, mmap_fd, 0);
 		if (addr != buffer->address + buffer->size) {
 			perror("mmap");
@@ -80,7 +80,7 @@ cbd_t cb_open(int length, char *template, unsigned int oflag)
 	}
 
 	/* lock memory to avoid swapping*/
-	if (CB_LOCKED & oflag) {
+	if (CB_LOCKED & buffer->oflag) {
 		if (0 < mlockall(MCL_CURRENT | MCL_FUTURE)) {
 			perror("mlockall");
 		}
@@ -143,7 +143,14 @@ void cb_tail_adv(cbd_t cbdes, unsigned long bytes)
 	}
 }
 
-unsigned long cb_available_bytes(cbd_t cbdes)
+unsigned long cb_used_bytes(cbd_t cbdes)
+{
+	cb_attr *buffer = cbdes;
+
+	return buffer->head - buffer->tail;
+}
+
+unsigned long cb_unused_bytes(cbd_t cbdes)
 {
 	cb_attr *buffer = cbdes;
 
