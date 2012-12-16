@@ -9,7 +9,6 @@
 #include <sys/stat.h>
 #include <sys/statvfs.h>
 #include <unistd.h>
-#include <signal.h>
 #include <sys/mman.h>
 
 typedef int cbd_t;
