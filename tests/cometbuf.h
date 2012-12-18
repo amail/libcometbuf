@@ -11,7 +11,7 @@
 #include <unistd.h>
 #include <sys/mman.h>
 
-typedef void * cbd_t;
+typedef int cbd_t;
 typedef struct cb_attr cb_attr;
 
 #define CB_FIXED 1
@@ -20,11 +20,10 @@ typedef struct cb_attr cb_attr;
 
 extern cbd_t cb_open(int length, char *template, unsigned int oflag);
 extern int cb_free(cbd_t cbdes);
-extern int cb_clear(cbd_t cbdes);
 extern void *cb_head_addr(cbd_t cbdes);
 extern void *cb_tail_addr(cbd_t cbdes);
 extern int cb_head_adv(cbd_t cbdes, unsigned long bytes);
-extern int cb_tail_adv(cbd_t cbdes, unsigned long bytes);
+extern void cb_tail_adv(cbd_t cbdes, unsigned long bytes);
 extern unsigned long cb_used_bytes(cbd_t cbdes);
 extern unsigned long cb_unused_bytes(cbd_t cbdes);
 extern int cb_sync(cbd_t cbdes);

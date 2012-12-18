@@ -39,29 +39,30 @@ cbd_t cb_open(int length, char *template, unsigned int oflag)
 	}
 
 	/* mmap */
-	buffer = mmap(NULL, length + page_size, PROT_READ | PROT_WRITE, MAP_SHARED, mmap_fd, 0);
-	if (buffer <= 0) {
+	addr = mmap(NULL, buffer->size + page_size, PROT_WRITE, MAP_FIXED | MAP_SHARED, mmap_fd, 0);
+	if (addr < 0) {
 		perror("mmap");
 		return -1;
 	}
 
 	/* set buffer descriptor attributes */
-	buffer->address = buffer + page_size;
+	buffer = addr;
+	buffer->address = addr + page_size;
 	buffer->size = length;
 	buffer->page_size = page_size;
 	buffer->oflag = oflag;
 
 	/* use automatic wrap around */
-	//if (!(CB_FIXED & oflag)) {
-	//	addr = mmap(buffer->address + buffer->size, buffer->size, PROT_READ | PROT_WRITE, MAP_FIXED | MAP_SHARED, mmap_fd, page_size);
-	//	if (addr != buffer->address + buffer->size) {
-	//		perror("mmap");
-	//		return -1;
-	//	}
-	//	addr = 0;
-	//}
+	if (!(CB_FIXED & buffer->oflag)) {
+		addr = mmap(buffer->address + buffer->size, buffer->size, PROT_WRITE, MAP_FIXED | MAP_SHARED, mmap_fd, page_size);
+		if (addr != buffer->address + buffer->size) {
+			perror("mmap");
+			return -1;
+		}
+	}
 
 	/* clean up */
+	addr = 0;
 	close(mmap_fd);
 
 	/* madvise */
@@ -89,46 +90,42 @@ cbd_t cb_open(int length, char *template, unsigned int oflag)
 
 int cb_free(cbd_t cbdes)
 {
-	cb_attr *buffer = (cb_attr *) cbdes;
-
-	munmap(buffer, buffer->size + buffer->page_size);
-
-	return 0;
-}
-
-int cb_clear(cbd_t cbdes)
-{
-	cb_attr *buffer = (cb_attr *) cbdes;
+	cb_attr *buffer = cbdes;
 
 	/* clear memory */
 	if (buffer->address != memset(buffer->address, 0, buffer->size)) {
 		perror("memset");
-		return -1;
 	}
 
 	buffer->head = 0;
 	buffer->tail = 0;
+	buffer->address = 0;
+
+	munlockall();
+	munmap(buffer, buffer->size + buffer->page_size);
+	
+	free(buffer);
 
 	return 0;
 }
 
 void *cb_head_addr(cbd_t cbdes)
 {
-	cb_attr *buffer = (cb_attr *) cbdes;
+	cb_attr *buffer = cbdes;
 
-	return (void *) (buffer->address + buffer->head);	
+	return buffer->address + buffer->head;	
 }
 
 void *cb_tail_addr(cbd_t cbdes)
 {
-	cb_attr *buffer = (cb_attr *) cbdes;
+	cb_attr *buffer = cbdes;
 
-	return (void *) (buffer->address + buffer->tail);	
+	return buffer->address + buffer->tail;	
 }
 
 int cb_head_adv(cbd_t cbdes, unsigned long bytes)
 {
-	cb_attr *buffer = (cb_attr *) cbdes;
+	cb_attr *buffer = cbdes;
 
 	if (CB_PERSISTANT & buffer->oflag) {
 		/* sync buffer body */
@@ -146,12 +143,12 @@ int cb_head_adv(cbd_t cbdes, unsigned long bytes)
 
 	buffer->head += bytes;
 
-	return buffer->head;
+	return 0;
 }
 
-int cb_tail_adv(cbd_t cbdes, unsigned long bytes)
+void cb_tail_adv(cbd_t cbdes, unsigned long bytes)
 {
-	cb_attr *buffer = (cb_attr *) cbdes;
+	cb_attr *buffer = cbdes;
 
 	buffer->tail += bytes;	
 
@@ -159,27 +156,25 @@ int cb_tail_adv(cbd_t cbdes, unsigned long bytes)
 		buffer->head -= buffer->size;
 		buffer->tail -= buffer->size;
 	}
-
-	return 0;
 }
 
 unsigned long cb_used_bytes(cbd_t cbdes)
 {
-	cb_attr *buffer = (cb_attr *) cbdes;
+	cb_attr *buffer = cbdes;
 
 	return buffer->head - buffer->tail;
 }
 
 unsigned long cb_unused_bytes(cbd_t cbdes)
 {
-	cb_attr *buffer = (cb_attr *) cbdes;
+	cb_attr *buffer = cbdes;
 
 	return buffer->size - (buffer->head - buffer->tail);
 }
 
 int cb_sync(cbd_t cbdes)
 {
-	cb_attr *buffer = (cb_attr *) cbdes;
+	cb_attr *buffer = cbdes;
 
 	/* sync buffer body */
 	if (msync(buffer->address + buffer->tail, buffer->head - buffer->tail, MS_SYNC) < 0) {
