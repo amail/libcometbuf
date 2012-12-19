@@ -1,2 +1,2 @@
-ftests:
-	gcc ../cometbuf.c function_tests.c -o ftest
+tests:
+	gcc ../cometbuf.c tests.c -o tests
