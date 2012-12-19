@@ -18,7 +18,7 @@ typedef struct cb_attr cb_attr;
 #define CB_LOCKED 2
 #define CB_PERSISTANT 4
 
-extern cbd_t cb_open(int length, char *template, unsigned int oflag);
+extern cbd_t cb_open(int length, char *path, unsigned int oflag);
 extern int cb_free(cbd_t cbdes);
 extern int cb_clear(cbd_t cbdes);
 extern void *cb_head_addr(cbd_t cbdes);
