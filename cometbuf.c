@@ -10,9 +10,9 @@ struct cb_attr {
 cbd_t cb_open(int length, char *path, unsigned int oflag)
 {
 	cb_attr *buffer;
-	int mmap_fd, mmap_wrapped_fd, dump_fd;
+	int mmap_fd, zero_fd;
 	unsigned long page_size;
-	void *addr;
+	void *addr, *addr_init;
 
 	/* check page size */
 	page_size = sysconf(_SC_PAGESIZE);
@@ -21,11 +21,11 @@ cbd_t cb_open(int length, char *path, unsigned int oflag)
 		return -1;
 	}
 
-	/* create dump file */
-//	mmap_fd = fopen(path, "rw+");
-	mmap_fd = shm_open("/cometbuf01", O_RDWR | O_CREAT, 0777);
-	if (mmap_fd < 0) {
-		perror("shm_open");
+	mmap_fd = open(path, O_RDWR);
+	zero_fd = open("/dev/zero", O_RDWR); 
+
+	if (mmap_fd < 0 || zero_fd < 0) {
+		perror("open");
 		return -1;
 	}
 
@@ -34,34 +34,38 @@ cbd_t cb_open(int length, char *path, unsigned int oflag)
 		return -1;
 	}
 
-	mmap_wrapped_fd = dup(mmap_fd);
-
-	/* mmap */
-	buffer = mmap(NULL, length + page_size, PROT_READ | PROT_WRITE, MAP_SHARED, mmap_fd, 0);
-	if (buffer <= 0) {
+	/* initial mmap to allocate a big enough mem area */
+	addr_init = mmap(NULL, length * 2 + page_size, PROT_READ | PROT_WRITE, MAP_SHARED, zero_fd, 0);
+	if (addr_init < 1) {
 		perror("mmap");
 		return -1;
 	}
+
+	/* mmap */
+	buffer = mmap(addr_init, length + page_size, PROT_READ | PROT_WRITE, MAP_FIXED | MAP_SHARED, mmap_fd, 0);
+	if (buffer != addr_init) {
+		perror("mmap");
+		return -1;
+	}
+
+	/* use automatic wrap around */
+	if (!(CB_FIXED & oflag)) {
+		addr = mmap(addr_init + page_size + length, length, PROT_READ | PROT_WRITE, MAP_FIXED | MAP_SHARED, mmap_fd, page_size);
+		if (addr != addr_init + page_size + length) {
+			perror("mmap");
+			return -1;
+		}
+	}
+
+	/* clean up */
+	close(zero_fd);
+	close(mmap_fd);
 
 	/* set buffer descriptor attributes */
 	buffer->address = buffer + page_size;
 	buffer->size = length;
 	buffer->page_size = page_size;
 	buffer->oflag = oflag;
-
-	/* use automatic wrap around */
-	if (!(CB_FIXED & oflag)) {
-		addr = mmap(buffer->address + buffer->size, buffer->size, PROT_READ | PROT_WRITE, MAP_FIXED | MAP_SHARED, mmap_wrapped_fd, page_size);
-		if (addr != buffer->address + buffer->size) {
-			perror("mmap");
-			return -1;
-		}
-		printf("Hej");
-		addr = 0;
-	}
-
-	/* clean up */
-	close(mmap_fd);
 
 	/* madvise */
 	if (0 < madvise(buffer->address, buffer->size, MADV_SEQUENTIAL)) {
@@ -100,10 +104,10 @@ int cb_clear(cbd_t cbdes)
 	cb_attr *buffer = (cb_attr *) cbdes;
 
 	/* clear memory */
-	if (buffer->address != memset(buffer->address, 0, buffer->size)) {
-		perror("memset");
-		return -1;
-	}
+	//if (buffer->address != memset(buffer->address, 0, buffer->size)) {
+	//	perror("memset");
+	//	return -1;
+	//}
 
 	buffer->head = 0;
 	buffer->tail = 0;
