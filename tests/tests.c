@@ -22,16 +22,14 @@ struct cb_attr {
 };
 
 /*
-	Write
-	Read
-	Read fast
-	Write fast
-	Write to end
+	Basics (open, write, read, clear and free)
+	Fill (open and write to full)
 	Read to end
-	Write/Read random speed
-	Threads
-	Dump to file
-	Load dump file
+	Wrap around (write, advance and read)
+	Overflow (write)
+	Performance test (read and write)
+	Threading (read and write in different speeds)
+	Try to break (write and read various data and sequences)
 */
 
 void print_header(const char *title)
