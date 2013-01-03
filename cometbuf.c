@@ -58,8 +58,8 @@ cbd_t cb_open(int length, char *path, unsigned int oflag)
 	}
 
 	/* clean up */
-	close(zero_fd);
 	close(mmap_fd);
+	close(zero_fd);
 
 	/* set buffer descriptor attributes */
 	buffer->address = buffer + page_size;
