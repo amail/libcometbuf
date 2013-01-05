@@ -1,7 +1,5 @@
 BACKLOG
- * Save cb_attr, add to beginning of buffer?
- * Flush to file when buffer overflow
  * mq_open flags?
- * Try it!
+ * Tests
  * Create man pages for every function
  * Better Makefile
