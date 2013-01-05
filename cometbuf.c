@@ -104,10 +104,10 @@ int cb_clear(cbd_t cbdes)
 	cb_attr *buffer = (cb_attr *) cbdes;
 
 	/* clear memory */
-	//if (buffer->address != memset(buffer->address, 0, buffer->size)) {
-	//	perror("memset");
-	//	return -1;
-	//}
+	if (buffer->address != memset(buffer->address, 0, buffer->size)) {
+		perror("memset");
+		return -1;
+	}
 
 	buffer->head = 0;
 	buffer->tail = 0;
@@ -197,6 +197,13 @@ int cb_sync(cbd_t cbdes)
 	}
 
 	return 0;
+}
+
+int cb_buffer_length(cbd_t cbdes)
+{
+	cb_attr *buffer = (cb_attr *) cbdes;
+
+	return (int) buffer->size;
 }
 
 static unsigned long cb_block_size(char *path)

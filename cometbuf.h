@@ -28,6 +28,7 @@ extern int cb_tail_adv(cbd_t cbdes, unsigned long bytes);
 extern unsigned long cb_used_bytes(cbd_t cbdes);
 extern unsigned long cb_unused_bytes(cbd_t cbdes);
 extern int cb_sync(cbd_t cbdes);
+extern int cb_buffer_length(cbd_t cbdes);
 
 static unsigned long cb_block_size(char *path);
 
