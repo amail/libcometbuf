@@ -209,69 +209,71 @@ int main ()
 	} else {
 		printf(" * buffer data\t\t[ OK ]\n");
 	}
+	
+	/* cleanup */
+	fclose(fd);
+	free(dummy);
+	cb_free(cbd);
 
 
 	print_header("test 03: wrap around");
 
-	if (cb_clear(cbd) < 0) {
-		printf(" * clearing buffer...\t[ FAIL ]\n");
+	/* open */
+	cbd = cb_open(dummy_size, "/tmp/cometbuf.dump", CB_PERSISTANT);
+	if (cbd < 0) {
+		printf(" * open /tmp/cometbuf.dump\t[ FAIL ]\n");
 		return -1;
-	} else {
-		printf(" * clearing buffer...\t[ OK ]\n");
 	}
-
+	printf(" * open /tmp/cometbuf.dump\t[ OK ]\n");
 	print_info(cbd);
 
-	if (cb_head_adv(cbd, cb_buffer_length(cbd) - 100) < 0) {
-		printf(" * advancing head pointer to end - 100...\t[ FAIL ]\n");
-		return -1;
-	} else {
-		printf(" * advancing head pointer to end - 100...\t[ OK ]\n");
-	}
-
-	if (cb_tail_adv(cbd, cb_buffer_length(cbd) - 100) < 0) {
-		printf(" * advancing tail pointer to end - 100...\t[ FAIL ]\n");
-		return -1;
-	} else {
-		printf(" * advancing tail pointer to end - 100...\t[ OK ]\n");
-	}
-
-	print_stats(cbd);
-
-	printf(" * writing %d bytes...\n", 300);
-	if (fread(cb_head_addr(cbd), 300, 1, fd) < 0) {
-		perror("fread");
-		return -1;
-	} else {
-		if (cb_head_adv(cbd, 300) < 0) {
-			printf("head_adv: failed\n");
-		}
-	}
-
-	print_stats(cbd);
-
-	/* read from the buffer */
-	if (memcpy(dummy, cb_tail_addr(cbd), 300) < 0) {
+	/* add data */
+	printf(" * writing 10 bytes...\n");
+	if (memcpy(cb_head_addr(cbd), "123456789\0", 10) < 0) {
 		perror("memcpy");
+		return -1;
 	}
-
-	/* compare the data */
-	if (0 > bcmp(dummy, cb_tail_addr(cbd), 300)) {
-		printf(" * buffer data\t\t[ FAIL ]\n");
-	} else {
-		printf(" * buffer data\t\t[ OK ]\n");
+	
+	if (cb_head_adv(cbd, 10) < 0) {
+		printf("head_adv: failed\n");
 	}
-
-	/* advance read pointer */
-	if (cb_tail_adv(cbd, 300) < 0) {
-		printf("tail_adv: failed\n");
-	}
-
+	
 	print_stats(cbd);
 
-	/* cleanup */
-	fclose(fd);
-	free(dummy);
+	/* add data again */
+	printf(" * writing 10 bytes...\n");
+	if (memcpy(cb_head_addr(cbd), "123456789\0", 10) < 0) {
+		perror("memcpy");
+		return -1;
+	}
+	
+	if (cb_head_adv(cbd, 10) < 0) {
+		printf("head_adv: failed\n");
+	}
+	
+	print_stats(cbd);
+
+	/* close it */
+	printf(" * closing /tmp/cometbuf.dump\n");
+	if (cb_free(cbd) < 0) {
+		perror("cb_free");
+		return -1;
+	}
+
+	/* reopen it */
+	cbd = cb_open(dummy_size, "/tmp/cometbuf.dump", CB_PERSISTANT);
+	if (cbd < 0) {
+		printf(" * reopen /tmp/cometbuf.dump\t[ FAIL ]\n");
+		return -1;
+	}
+	printf(" * reopen /tmp/cometbuf.dump\t[ OK ]\n");
+	print_stats(cbd);
+
+	if (bcmp("123456789\0", cb_tail_addr(cbd), 10)) {
+		printf(" * data\t\t[ FAIL ]\n");
+		return -1;
+	}
+	printf(" * data\t\t[ OK ]\n");
 
 	return;
 }
