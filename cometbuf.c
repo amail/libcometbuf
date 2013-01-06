@@ -13,6 +13,7 @@ cbd_t cb_open(int length, char *path, unsigned int oflag)
 	int mmap_fd, zero_fd;
 	unsigned long page_size;
 	void *addr, *addr_init;
+	int file_exists;
 
 	/* check page size */
 	page_size = sysconf(_SC_PAGESIZE);
@@ -21,7 +22,14 @@ cbd_t cb_open(int length, char *path, unsigned int oflag)
 		return -1;
 	}
 
-	mmap_fd = open(path, O_RDWR);
+	/* check if file can be accessed */
+	file_exists = access(path, W_OK | R_OK);
+	if (file_exists < 0) {
+		perror("access dump file");
+	}
+
+	/* open files */
+	mmap_fd = open(path, O_RDWR | O_CREAT);
 	zero_fd = open("/dev/zero", O_RDWR); 
 
 	if (mmap_fd < 0 || zero_fd < 0) {
@@ -29,9 +37,12 @@ cbd_t cb_open(int length, char *path, unsigned int oflag)
 		return -1;
 	}
 
-	if (ftruncate(mmap_fd, length + page_size) < 0) {
-		perror("ftruncate");
-		return -1;
+	/* persistance */
+	if (!(CB_PERSISTANT & buffer->oflag) || file_exists < 0) {
+		if (ftruncate(mmap_fd, length + page_size) < 0) {
+			perror("ftruncate");
+			return -1;
+		}
 	}
 
 	/* initial mmap to allocate a big enough mem area */
@@ -133,6 +144,8 @@ int cb_head_adv(cbd_t cbdes, unsigned long bytes)
 {
 	cb_attr *buffer = (cb_attr *) cbdes;
 
+	buffer->head += bytes;
+
 	if (CB_PERSISTANT & buffer->oflag) {
 		/* sync buffer body */
 		if (msync(buffer->address + buffer->head, bytes, MS_SYNC) < 0) {
@@ -147,8 +160,6 @@ int cb_head_adv(cbd_t cbdes, unsigned long bytes)
 		}
 	}
 
-	buffer->head += bytes;
-
 	return buffer->head;
 }
 
@@ -161,6 +172,14 @@ int cb_tail_adv(cbd_t cbdes, unsigned long bytes)
 	if (buffer->tail >= buffer->size) {
 		buffer->head -= buffer->size;
 		buffer->tail -= buffer->size;
+	}
+
+	if (CB_PERSISTANT & buffer->oflag) {
+		/* sync buffer header */
+		if (msync(buffer, buffer->page_size, MS_SYNC) < 0) {
+			perror("msync header");
+			return -1;
+		}
 	}
 
 	return 0;
