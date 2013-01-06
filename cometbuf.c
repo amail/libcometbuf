@@ -74,9 +74,14 @@ cbd_t cb_open(int length, char *path, unsigned int oflag)
 
 	/* set buffer descriptor attributes */
 	buffer->address = buffer + page_size;
-	buffer->size = length;
-	buffer->page_size = page_size;
-	buffer->oflag = oflag;
+	if (CB_PERSISTANT & buffer->oflag || file_exists >= 0) {
+		buffer->size = length;
+		buffer->page_size = page_size;
+		buffer->oflag = oflag;
+	} else {
+		buffer->tail = 0;
+		buffer->head = 0;
+	}
 
 	/* madvise */
 	if (0 < madvise(buffer->address, buffer->size, MADV_SEQUENTIAL)) {
@@ -93,10 +98,6 @@ cbd_t cb_open(int length, char *path, unsigned int oflag)
 			perror("mlock");
 		}
 	}
-
-	/* set tail and head pointers */
-	buffer->tail = 0;
-	buffer->head = 0;
 
 	return (cbd_t) buffer;
 }
@@ -144,20 +145,32 @@ int cb_head_adv(cbd_t cbdes, unsigned long bytes)
 {
 	cb_attr *buffer = (cb_attr *) cbdes;
 
-	buffer->head += bytes;
-
 	if (CB_PERSISTANT & buffer->oflag) {
-		/* sync buffer body */
-		if (msync(buffer->address + buffer->head, bytes, MS_SYNC) < 0) {
+		/* sync buffer */
+		unsigned long offset  = (buffer->head / buffer->page_size) * buffer->page_size;
+		unsigned long pages = ((bytes / buffer->page_size) + 1) * buffer->page_size;
+		if (msync(buffer->address + offset, pages, MS_SYNC) < 0) {
 			perror("msync buffer");
 			return -1;
 		}
 
+		/* advance pointer */
+		buffer->head += bytes;
+
 		/* sync buffer header */
+		if (munlock(buffer, buffer->page_size) < 0) {
+			perror("munlock header");
+		}
 		if (msync(buffer, buffer->page_size, MS_SYNC) < 0) {
 			perror("msync header");
 			return -1;
 		}
+		if (mlock(buffer, buffer->page_size) < 0) {
+			perror("mlock header");
+		}
+	} else {
+		/* advance pointer */
+		buffer->head += bytes;
 	}
 
 	return buffer->head;
