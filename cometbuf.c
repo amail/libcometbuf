@@ -1,5 +1,7 @@
 #include "cometbuf.h"
 
+#define ERROR_VAL 0
+
 struct cb_attr {
 	unsigned int tail, head, size;
 	unsigned int oflag;
@@ -19,13 +21,14 @@ cbd_t cb_open(int length, char *path, unsigned int oflag)
 	page_size = sysconf(_SC_PAGESIZE);
 	if (page_size <= 0 || length % page_size != 0 || sizeof(cb_attr) > page_size) {
 		perror("page size");
-		return -1;
+		return ERROR_VAL;
 	}
 
 	/* check if file can be accessed */
 	file_exists = access(path, W_OK | R_OK);
 	if (file_exists < 0) {
-		perror("access dump file");
+		perror("dump file");
+		return ERROR_VAL;
 	}
 
 	/* open files */
@@ -34,14 +37,14 @@ cbd_t cb_open(int length, char *path, unsigned int oflag)
 
 	if (mmap_fd < 0 || zero_fd < 0) {
 		perror("open");
-		return -1;
+		return ERROR_VAL;
 	}
 
 	/* persistance */
 	if (!(CB_PERSISTANT & buffer->oflag) || file_exists < 0) {
 		if (ftruncate(mmap_fd, length + page_size) < 0) {
 			perror("ftruncate");
-			return -1;
+			return ERROR_VAL;
 		}
 	}
 
@@ -49,14 +52,14 @@ cbd_t cb_open(int length, char *path, unsigned int oflag)
 	addr_init = mmap(NULL, length * 2 + page_size, PROT_READ | PROT_WRITE, MAP_SHARED, zero_fd, 0);
 	if (addr_init < 1) {
 		perror("mmap");
-		return -1;
+		return ERROR_VAL;
 	}
 
 	/* mmap */
 	buffer = mmap(addr_init, length + page_size, PROT_READ | PROT_WRITE, MAP_FIXED | MAP_SHARED, mmap_fd, 0);
 	if (buffer != addr_init) {
 		perror("mmap");
-		return -1;
+		return ERROR_VAL;
 	}
 
 	/* use automatic wrap around */
@@ -64,7 +67,7 @@ cbd_t cb_open(int length, char *path, unsigned int oflag)
 		addr = mmap(addr_init + page_size + length, length, PROT_READ | PROT_WRITE, MAP_FIXED | MAP_SHARED, mmap_fd, page_size);
 		if (addr != addr_init + page_size + length) {
 			perror("mmap");
-			return -1;
+			return ERROR_VAL;
 		}
 	}
 
@@ -118,7 +121,7 @@ int cb_clear(cbd_t cbdes)
 	/* clear memory */
 	if (buffer->address != memset(buffer->address, 0, buffer->size)) {
 		perror("memset");
-		return -1;
+		return ERROR_VAL;
 	}
 
 	buffer->head = 0;
@@ -149,9 +152,10 @@ int cb_head_adv(cbd_t cbdes, unsigned long bytes)
 		/* sync buffer */
 		unsigned long offset  = (buffer->head / buffer->page_size) * buffer->page_size;
 		unsigned long pages = ((bytes / buffer->page_size) + 1) * buffer->page_size;
+
 		if (msync(buffer->address + offset, pages, MS_SYNC) < 0) {
 			perror("msync buffer");
-			return -1;
+			return ERROR_VAL;
 		}
 
 		/* advance pointer */
@@ -163,7 +167,7 @@ int cb_head_adv(cbd_t cbdes, unsigned long bytes)
 		}
 		if (msync(buffer, buffer->page_size, MS_SYNC) < 0) {
 			perror("msync header");
-			return -1;
+			return ERROR_VAL;
 		}
 		if (mlock(buffer, buffer->page_size) < 0) {
 			perror("mlock header");
@@ -189,9 +193,15 @@ int cb_tail_adv(cbd_t cbdes, unsigned long bytes)
 
 	if (CB_PERSISTANT & buffer->oflag) {
 		/* sync buffer header */
+		if (munlock(buffer, buffer->page_size) < 0) {
+			perror("munlock header");
+		}
 		if (msync(buffer, buffer->page_size, MS_SYNC) < 0) {
 			perror("msync header");
-			return -1;
+			return ERROR_VAL;
+		}
+		if (mlock(buffer, buffer->page_size) < 0) {
+			perror("mlock header");
 		}
 	}
 
@@ -216,16 +226,25 @@ int cb_sync(cbd_t cbdes)
 {
 	cb_attr *buffer = (cb_attr *) cbdes;
 
-	/* sync buffer body */
-	if (msync(buffer->address + buffer->tail, buffer->head - buffer->tail, MS_SYNC) < 0) {
+	/* sync buffer */
+	unsigned long offset  = (buffer->tail / buffer->page_size) * buffer->page_size;
+	unsigned long pages = (((buffer->head - buffer->tail) / buffer->page_size) + 1) * buffer->page_size;
+
+	if (msync(buffer->address + offset, pages, MS_SYNC) < 0) {
 		perror("msync buffer");
-		return -1;
+		return ERROR_VAL;
 	}
 
 	/* sync buffer header */
+	if (munlock(buffer, buffer->page_size) < 0) {
+		perror("munlock header");
+	}
 	if (msync(buffer, buffer->page_size, MS_SYNC) < 0) {
 		perror("msync header");
-		return -1;
+		return ERROR_VAL;
+	}
+	if (mlock(buffer, buffer->page_size) < 0) {
+		perror("mlock header");
 	}
 
 	return 0;
@@ -243,7 +262,7 @@ static unsigned long cb_block_size(char *path)
 	struct statvfs st;
 	if (statvfs(path, &st) < 0) {
 		perror("statvfs");	
-		return -1;
+		return ERROR_VAL;
 	}
 	
 	return (unsigned long)st.f_bsize;
