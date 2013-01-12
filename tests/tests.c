@@ -13,7 +13,6 @@
 
 #include "../cometbuf.h"
 
-
 struct cb_attr {
 	unsigned int tail, head, size;
 	unsigned int oflag;
@@ -35,7 +34,7 @@ struct cb_attr {
 void print_header(const char *title)
 {
 	printf("================================================================================\n");
-	printf("%s\n", title);
+	printf(" %s\n", title);
 	printf("================================================================================\n");
 }
 
@@ -43,51 +42,44 @@ void print_info(cbd_t cbd)
 {
 	cb_attr *buffer = cbd;
 
-	printf("+------------------------------------------------------------------------------+\n");
-	printf("| buffer info:                                                                 |\n");
-	printf("+------------------------------------------------------------------------------+\n");
-
-	printf(" * size (bytes):\t%d (%d * %d + %d)\n",
+	printf(" * size (bytes):\t\t%d (%d * %d + %d)\n",
 		buffer->size, buffer->page_size,
 		buffer->size / buffer->page_size,
 		buffer->size % buffer->page_size);
 	if (buffer->size / buffer->page_size > 0 && buffer->size % buffer->page_size == 0) {
-		printf(" * size (valid):\t[ YES ]\n");
+		printf(" * size (valid):\t\t[ OK ]\n");
 	} else {
-		printf(" * size (valid):\t[ NO ]\n");
+		printf(" * size (valid):\t\t[ NO ]\n");
 	}
-	printf(" * address:\t\t0x%x\n", buffer->address);
-	printf(" * page size:\t\t%d\n", buffer->page_size);
-	printf(" * oflags:\t\t%d\n", buffer->oflag);
+	printf(" * address:\t\t\t0x%x\n", buffer->address);
+	printf(" * page size:\t\t\t%d\n", buffer->page_size);
+	printf(" * oflags:\t\t\t%d\n", buffer->oflag);
 
-	printf("+------------------------------------------------------------------------------+\n");
 }
 
 void print_stats(cbd_t cbd)
 {
 	cb_attr *buffer = cbd;
 
-	printf("+------------------------------------------------------------------------------+\n");
-	printf("| buffer stats:                                                                |\n");
-	printf("+------------------------------------------------------------------------------+\n");
-
-	printf(" * used bytes:\t\t%d\n", cb_used_bytes(cbd));
-	printf(" * unused bytes:\t%d\n", cb_unused_bytes(cbd));
 	if (cb_unused_bytes(cbd) + cb_used_bytes(cbd) == buffer->size) {
-		printf(" * valid:\t\t[ YES ]\n");
+		printf(" * valid:\t\t\t[ OK ] (%d/%d)\n", cb_used_bytes(cbd), cb_unused_bytes(cbd));
 	} else {
-		printf(" * valid:\t\t[ NO ]\n");
+		printf(" * valid:\t\t\t[ NO ]\n");
 	}
-	printf(" * tail address:\t%x (offset: %d, %d)\n",
+}
+
+void print_address(cbd_t cbd)
+{
+	cb_attr *buffer = cbd;
+
+	printf(" * tail address:\t\t%x (offset: %d, %d)\n",
 		cb_tail_addr(cbd),
 		cb_tail_addr(cbd) - buffer->address,
 		buffer->address + buffer->size - (unsigned int) cb_tail_addr(cbd));
-	printf(" * head address:\t%x (offset: %d, %d)\n",
+	printf(" * head address:\t\t%x (offset: %d, %d)\n",
 		cb_head_addr(cbd),
 		cb_head_addr(cbd) - buffer->address,
 		buffer->address + buffer->size - (unsigned int) cb_head_addr(cbd));
-
-	printf("+------------------------------------------------------------------------------+\n");
 }
 
 int main ()
@@ -111,7 +103,7 @@ int main ()
 	/* try open, write, clear and free */
 	cbd = cb_open(page_size * 128, "/tmp/cometbuf.dump", 0);
 	if (cbd < 0) {
-		printf(" * open /tmp/cometbuf.dump\t[ FAIL ]\n");
+		printf(" * open /tmp/cometbuf.dump\t[ NO ]\n");
 		return -1;
 	}
 	printf(" * open /tmp/cometbuf.dump\t[ OK ]\n");
@@ -138,30 +130,30 @@ int main ()
 
 	/* compare the data */
 	if (0 > bcmp(dummy, cb_tail_addr(cbd), dummy_size)) {
-		printf(" * buffer data\t\t[ FAIL ]\n");
+		printf(" * buffer data\t\t\t[ NO ]\n");
 	} else {
-		printf(" * buffer data\t\t[ OK ]\n");
+		printf(" * buffer data\t\t\t[ OK ]\n");
 	}
 
 	/* advance pointer */
 	if (0 > cb_tail_adv(cbd, dummy_size)) {
-		printf(" * tail adv:\t\t[ FAIL ]\n");
+		printf(" * tail adv:\t\t\t[ NO ]\n");
 	} else {
-		printf(" * tail adv:\t\t[ OK ]\n");
+		printf(" * tail adv:\t\t\t[ OK ]\n");
 	}
 
 	/* clear buffer */
 	if (cb_clear(cbd) < 0) {
-		printf(" * clear:\t\t[ FAIL ]\n");
+		printf(" * clear:\t\t\t[ NO ]\n");
 	} else {
-		printf(" * clear:\t\t[ OK ]\n");
+		printf(" * clear:\t\t\t[ OK ]\n");
 	}
 
 	/* free buffer */
 	if (cb_free(cbd) < 0) {
-		printf(" * free:\t\t[ FAIL ]\n");
+		printf(" * free:\t\t\t[ NO ]\n");
 	} else {
-		printf(" * free:\t\t[ OK ]\n");
+		printf(" * free:\t\t\t[ OK ]\n");
 	}
 
 	/* cleanup */
@@ -178,7 +170,7 @@ int main ()
 	/* open */
 	cbd = cb_open(dummy_size, "/tmp/cometbuf2.dump", 0);
 	if (cbd < 0) {
-		printf(" * open /tmp/cometbuf2.dump\t[ FAIL ]\n");
+		printf(" * open /tmp/cometbuf2.dump\t[ NO ]\n");
 		return -1;
 	}
 	printf(" * open /tmp/cometbuf2.dump\t[ OK ]\n");
@@ -197,6 +189,7 @@ int main ()
 	}
 
 	print_stats(cbd);
+	print_address(cbd);
 
 	/* read from the buffer */
 	if (memcpy(dummy, cb_tail_addr(cbd), dummy_size) < 0) {
@@ -205,9 +198,9 @@ int main ()
 
 	/* compare the data */
 	if (0 > bcmp(dummy, cb_tail_addr(cbd), dummy_size)) {
-		printf(" * buffer data\t\t[ FAIL ]\n");
+		printf(" * buffer data\t\t\t[ NO ]\n");
 	} else {
-		printf(" * buffer data\t\t[ OK ]\n");
+		printf(" * buffer data\t\t\t[ OK ]\n");
 	}
 	
 	/* cleanup */
@@ -221,7 +214,7 @@ int main ()
 	/* open */
 	cbd = cb_open(dummy_size, "/tmp/cometbuf.dump", CB_PERSISTANT);
 	if (cbd < 0) {
-		printf(" * open /tmp/cometbuf.dump\t[ FAIL ]\n");
+		printf(" * open /tmp/cometbuf.dump\t[ NO ]\n");
 		return -1;
 	}
 	printf(" * open /tmp/cometbuf.dump\t[ OK ]\n");
@@ -263,17 +256,21 @@ int main ()
 	/* reopen it */
 	cbd = cb_open(dummy_size, "/tmp/cometbuf.dump", CB_PERSISTANT);
 	if (cbd < 0) {
-		printf(" * reopen /tmp/cometbuf.dump\t[ FAIL ]\n");
+		printf(" * reopen /tmp/cometbuf.dump\t[ NO ]\n");
 		return -1;
 	}
 	printf(" * reopen /tmp/cometbuf.dump\t[ OK ]\n");
 	print_stats(cbd);
 
 	if (bcmp("123456789\0", cb_tail_addr(cbd), 10)) {
-		printf(" * data\t\t[ FAIL ]\n");
+		printf(" * buffer data\t\t\t[ NO ]\n");
 		return -1;
 	}
-	printf(" * data\t\t[ OK ]\n");
+	if (cb_used_bytes(cbd) != 20) {
+		printf(" * buffer data\t\t\t[ NO ]\n");
+		return -1;
+	}
+	printf(" * buffer data\t\t\t[ OK ]\n");
 
 	return;
 }
