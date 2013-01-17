@@ -1,5 +1,4 @@
 BACKLOG
- * Persistance in other functions
+ * Better Makefile (install, libtool?)
  * More tests (performance, try to break, more detailed tests etc.)
  * Create man pages for every function
- * Better Makefile
