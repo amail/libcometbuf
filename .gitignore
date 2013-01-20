@@ -1,5 +1,6 @@
 *.swp
 *.o
 *.so
+*.so.*
 *.swo
 tests/tests
