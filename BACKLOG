@@ -1,4 +1,6 @@
 BACKLOG
- * Better Makefile (install, libtool?)
+ * OS independent ldconfig?
+ * Fix compiler warnings
+ * Better Makefile (variables, install etc)
  * More tests (performance, try to break, more detailed tests etc.)
  * Create man pages for every function

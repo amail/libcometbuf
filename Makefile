@@ -4,7 +4,7 @@ LIBS=-lc -lrt
 VERSION=0.2.0
 
 cometbuf:
-	$(CC) $(CFLAGS) $(LIBS) -o cometbuf.o 
+	$(CC) $(CFLAGS) $(LIBS) -o cometbuf.o cometbuf.c
 	$(CC) -shared -Wl,-soname,libcometbuf.so -o libcometbuf.so.$(VERSION) cometbuf.o
 
 tests:
