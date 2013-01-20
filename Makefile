@@ -13,5 +13,6 @@ tests:
 install:
 	rm -f /usr/local/lib/libcometbuf.so
 	cp libcometbuf.so.$(VERSION) /usr/local/lib/
-	ln -s /usr/local/lib/libcometbuf.so.$(VERSION) /usr/local/lib/libcometbuf.so
+	chmod 0755 /usr/local/lib/libcometbuf.so.$(VERSION)
+	ldconfig -n /usr/local/lib
 	cp cometbuf.h /usr/local/include/
