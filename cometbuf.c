@@ -1,6 +1,6 @@
 #include "cometbuf.h"
 
-#define ERROR_VAL 0
+#define ERROR_VAL -1
 
 struct cb_attr {
 	unsigned int tail, head, size;
