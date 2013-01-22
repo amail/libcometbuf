@@ -16,6 +16,7 @@ cbd_t cb_open(int length, char *path, unsigned int oflag)
 	unsigned long page_size;
 	void *addr, *addr_init;
 	int file_exists;
+	struct stat dump_info;
 
 	/* check page size */
 	page_size = sysconf(_SC_PAGESIZE);
@@ -23,25 +24,31 @@ cbd_t cb_open(int length, char *path, unsigned int oflag)
 		perror("page size");
 		return ERROR_VAL;
 	}
-
 	/* check if file can be accessed */
 	file_exists = access(path, W_OK | R_OK);
 	if (file_exists < 0) {
-		perror("dump file");
-		return ERROR_VAL;
+		if (errno != ENOENT) {
+			perror("dump file");
+			return ERROR_VAL;
+		}
 	}
 
 	/* open files */
 	mmap_fd = open(path, O_RDWR | O_CREAT);
-	zero_fd = open("/dev/zero", O_RDWR); 
+	zero_fd = open("/dev/zero", O_RDWR);
 
-	if (mmap_fd < 0 || zero_fd < 0) {
+	if (mmap_fd < 1 || zero_fd < 1) {
 		perror("open");
 		return ERROR_VAL;
 	}
 
-	/* persistance */
-	if (!(CB_PERSISTANT & buffer->oflag) || file_exists < 0) {
+	if (stat(path, &dump_info) < 0) {
+		perror("fstat");
+		return ERROR_VAL;
+	}
+
+	/* set size */
+	if (!(CB_PERSISTANT & oflag) || dump_info.st_size < length + page_size) {
 		if (ftruncate(mmap_fd, length + page_size) < 0) {
 			perror("ftruncate");
 			return ERROR_VAL;
