@@ -33,7 +33,6 @@ cbd_t cb_open(int length, char *path, unsigned int oflag)
 		}
 	}
 
-	/* open files */
 	mmap_fd = open(path, O_RDWR | O_CREAT);
 	zero_fd = open("/dev/zero", O_RDWR);
 
@@ -58,14 +57,14 @@ cbd_t cb_open(int length, char *path, unsigned int oflag)
 	/* initial mmap to allocate a big enough mem area */
 	addr_init = mmap(NULL, length * 2 + page_size, PROT_READ | PROT_WRITE, MAP_SHARED, zero_fd, 0);
 	if (addr_init < 1) {
-		perror("mmap");
+		perror("mmap /dev/zero");
 		return ERROR_VAL;
 	}
 
 	/* mmap */
 	buffer = mmap(addr_init, length + page_size, PROT_READ | PROT_WRITE, MAP_FIXED | MAP_SHARED, mmap_fd, 0);
 	if (buffer != addr_init) {
-		perror("mmap");
+		perror("mmap buffer");
 		return ERROR_VAL;
 	}
 
@@ -73,7 +72,7 @@ cbd_t cb_open(int length, char *path, unsigned int oflag)
 	if (!(CB_FIXED & oflag)) {
 		addr = mmap(addr_init + page_size + length, length, PROT_READ | PROT_WRITE, MAP_FIXED | MAP_SHARED, mmap_fd, page_size);
 		if (addr != addr_init + page_size + length) {
-			perror("mmap");
+			perror("mmap buffer mirror");
 			return ERROR_VAL;
 		}
 	}
