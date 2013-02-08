@@ -19,7 +19,7 @@ typedef struct cb_attr cb_attr;
 #define CB_PERSISTANT 4
 
 extern cbd_t cb_open(int length, char *path, unsigned int oflag);
-extern int cb_free(cbd_t cbdes);
+extern int cb_close(cbd_t cbdes);
 extern int cb_clear(cbd_t cbdes);
 extern void *cb_head_addr(cbd_t cbdes);
 extern void *cb_tail_addr(cbd_t cbdes);

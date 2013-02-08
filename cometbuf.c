@@ -111,7 +111,7 @@ cbd_t cb_open(int length, char *path, unsigned int oflag)
 	return (cbd_t) buffer;
 }
 
-int cb_free(cbd_t cbdes)
+int cb_close(cbd_t cbdes)
 {
 	cb_attr *buffer = (cb_attr *) cbdes;
 
