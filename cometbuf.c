@@ -25,7 +25,7 @@ cbd_t cb_open(int length, char *path, unsigned int oflag)
 	file_exists = access(path, W_OK | R_OK);
 	if (file_exists < 0) {
 		if (errno != ENOENT) {
-			return errno;
+			return -1;
 		}
 	}
 
@@ -33,37 +33,38 @@ cbd_t cb_open(int length, char *path, unsigned int oflag)
 	zero_fd = open("/dev/zero", O_RDWR);
 
 	if (mmap_fd < 1 || zero_fd < 1) {
-		return errno;
+		return -1;
 	}
 
 	if (stat(path, &dump_info) < 0) {
-		return ENOENT;
+		errno = ENOENT;
+		return -1;
 	}
 
 	/* set size */
 	if (!(CB_PERSISTANT & oflag) || dump_info.st_size < length + page_size) {
 		if (ftruncate(mmap_fd, length + page_size) < 0) {
-			return errno;
+			return -1;
 		}
 	}
 
 	/* initial mmap to allocate a big enough mem area */
 	addr_init = mmap(NULL, length * 2 + page_size, PROT_READ | PROT_WRITE, MAP_SHARED, zero_fd, 0);
 	if (addr_init < 1) {
-		return errno;
+		return -1;
 	}
 
 	/* mmap */
 	buffer = mmap(addr_init, length + page_size, PROT_READ | PROT_WRITE, MAP_FIXED | MAP_SHARED, mmap_fd, 0);
 	if (buffer != addr_init) {
-		return errno;
+		return -1;
 	}
 
 	/* use automatic wrap around */
 	if (!(CB_FIXED & oflag)) {
 		addr = mmap(addr_init + page_size + length, length, PROT_READ | PROT_WRITE, MAP_FIXED | MAP_SHARED, mmap_fd, page_size);
 		if (addr != addr_init + page_size + length) {
-			return errno;
+			return -1;
 		}
 	}
 
@@ -84,17 +85,17 @@ cbd_t cb_open(int length, char *path, unsigned int oflag)
 
 	/* madvise */
 	if (0 < madvise(buffer->address, buffer->size, MADV_SEQUENTIAL)) {
-		return errno;
+		return -1;
 	}
 
 	/* lock memory to avoid swapping*/
 	if (CB_LOCKED & buffer->oflag) {
 		if (0 < mlockall(MCL_CURRENT | MCL_FUTURE)) {
-			return errno;
+			return -1;
 		}
 	} else {
 		if (mlock(buffer, page_size) < 0) {
-			return errno;
+			return -1;
 		}
 	}
 
@@ -116,7 +117,8 @@ int cb_clear(cbd_t cbdes)
 
 	/* clear memory */
 	if (buffer->address != memset(buffer->address, 0, buffer->size)) {
-		return EADDRNOTAVAIL;
+		errno = EADDRNOTAVAIL;
+		return -1;
 	}
 
 	buffer->head = 0;
@@ -149,7 +151,7 @@ int cb_head_adv(cbd_t cbdes, unsigned long bytes)
 		unsigned long pages = ((bytes / buffer->page_size) + 1) * buffer->page_size;
 
 		if (msync(buffer->address - offset, pages, MS_SYNC) < 0) {
-			return errno;
+			return -1;
 		}
 
 		/* advance pointer */
@@ -157,13 +159,13 @@ int cb_head_adv(cbd_t cbdes, unsigned long bytes)
 
 		/* sync buffer header */
 		if (munlock(buffer, buffer->page_size) < 0) {
-			return errno;
+			return -1;
 		}
 		if (msync(buffer, buffer->page_size, MS_SYNC) < 0) {
-			return errno;
+			return -1;
 		}
 		if (mlock(buffer, buffer->page_size) < 0) {
-			return errno;
+			return -1;
 		}
 	} else {
 		/* advance pointer */
@@ -187,13 +189,13 @@ int cb_tail_adv(cbd_t cbdes, unsigned long bytes)
 	if (CB_PERSISTANT & buffer->oflag) {
 		/* sync buffer header */
 		if (munlock(buffer, buffer->page_size) < 0) {
-			return errno;
+			return -1;
 		}
 		if (msync(buffer, buffer->page_size, MS_SYNC) < 0) {
-			return errno;
+			return -1;
 		}
 		if (mlock(buffer, buffer->page_size) < 0) {
-			return errno;
+			return -1;
 		}
 	}
 
@@ -223,18 +225,18 @@ int cb_sync(cbd_t cbdes)
 	unsigned long pages = (((buffer->head - buffer->tail) / buffer->page_size) + 1) * buffer->page_size;
 
 	if (msync(buffer->address - offset, pages, MS_SYNC) < 0) {
-		return errno;
+		return -1;
 	}
 
 	/* sync buffer header */
 	if (munlock(buffer, buffer->page_size) < 0) {
-		return errno;
+		return -1;
 	}
 	if (msync(buffer, buffer->page_size, MS_SYNC) < 0) {
-		return errno;
+		return -1;
 	}
 	if (mlock(buffer, buffer->page_size) < 0) {
-		return errno;
+		return -1;
 	}
 
 	return 0;
@@ -251,7 +253,7 @@ static unsigned long cb_block_size(char *path)
 {
 	struct statvfs st;
 	if (statvfs(path, &st) < 0) {
-		return errno;
+		return -1;
 	}
 	
 	return (unsigned long)st.f_bsize;
