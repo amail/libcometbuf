@@ -1,7 +1,5 @@
 #include "cometbuf.h"
 
-#define ERROR_VAL -1
-
 struct cb_attr {
 	unsigned int tail, head, size;
 	unsigned int oflag;
@@ -21,15 +19,13 @@ cbd_t cb_open(int length, char *path, unsigned int oflag)
 	/* check page size */
 	page_size = sysconf(_SC_PAGESIZE);
 	if (page_size <= 0 || length % page_size != 0 || sizeof(cb_attr) > page_size) {
-		perror("page size");
-		return ERROR_VAL;
+		return EINVAL;
 	}
 	/* check if file can be accessed */
 	file_exists = access(path, W_OK | R_OK);
 	if (file_exists < 0) {
 		if (errno != ENOENT) {
-			perror("dump file");
-			return ERROR_VAL;
+			return errno;
 		}
 	}
 
@@ -37,43 +33,37 @@ cbd_t cb_open(int length, char *path, unsigned int oflag)
 	zero_fd = open("/dev/zero", O_RDWR);
 
 	if (mmap_fd < 1 || zero_fd < 1) {
-		perror("open");
-		return ERROR_VAL;
+		return errno;
 	}
 
 	if (stat(path, &dump_info) < 0) {
-		perror("fstat");
-		return ERROR_VAL;
+		return ENOENT;
 	}
 
 	/* set size */
 	if (!(CB_PERSISTANT & oflag) || dump_info.st_size < length + page_size) {
 		if (ftruncate(mmap_fd, length + page_size) < 0) {
-			perror("ftruncate");
-			return ERROR_VAL;
+			return errno;
 		}
 	}
 
 	/* initial mmap to allocate a big enough mem area */
 	addr_init = mmap(NULL, length * 2 + page_size, PROT_READ | PROT_WRITE, MAP_SHARED, zero_fd, 0);
 	if (addr_init < 1) {
-		perror("mmap /dev/zero");
-		return ERROR_VAL;
+		return errno;
 	}
 
 	/* mmap */
 	buffer = mmap(addr_init, length + page_size, PROT_READ | PROT_WRITE, MAP_FIXED | MAP_SHARED, mmap_fd, 0);
 	if (buffer != addr_init) {
-		perror("mmap buffer");
-		return ERROR_VAL;
+		return errno;
 	}
 
 	/* use automatic wrap around */
 	if (!(CB_FIXED & oflag)) {
 		addr = mmap(addr_init + page_size + length, length, PROT_READ | PROT_WRITE, MAP_FIXED | MAP_SHARED, mmap_fd, page_size);
 		if (addr != addr_init + page_size + length) {
-			perror("mmap buffer mirror");
-			return ERROR_VAL;
+			return errno;
 		}
 	}
 
@@ -94,17 +84,17 @@ cbd_t cb_open(int length, char *path, unsigned int oflag)
 
 	/* madvise */
 	if (0 < madvise(buffer->address, buffer->size, MADV_SEQUENTIAL)) {
-		perror("madvise");
+		return errno;
 	}
 
 	/* lock memory to avoid swapping*/
 	if (CB_LOCKED & buffer->oflag) {
 		if (0 < mlockall(MCL_CURRENT | MCL_FUTURE)) {
-			perror("mlockall");
+			return errno;
 		}
 	} else {
 		if (mlock(buffer, page_size) < 0) {
-			perror("mlock");
+			return errno;
 		}
 	}
 
@@ -117,7 +107,7 @@ int cb_close(cbd_t cbdes)
 
 	munmap(buffer, buffer->size + buffer->page_size);
 
-	return 0;
+	return errno;
 }
 
 int cb_clear(cbd_t cbdes)
@@ -126,8 +116,7 @@ int cb_clear(cbd_t cbdes)
 
 	/* clear memory */
 	if (buffer->address != memset(buffer->address, 0, buffer->size)) {
-		perror("memset");
-		return ERROR_VAL;
+		return EADDRNOTAVAIL;
 	}
 
 	buffer->head = 0;
@@ -160,8 +149,7 @@ int cb_head_adv(cbd_t cbdes, unsigned long bytes)
 		unsigned long pages = ((bytes / buffer->page_size) + 1) * buffer->page_size;
 
 		if (msync(buffer->address - offset, pages, MS_SYNC) < 0) {
-			perror("msync buffer");
-			return ERROR_VAL;
+			return errno;
 		}
 
 		/* advance pointer */
@@ -169,14 +157,13 @@ int cb_head_adv(cbd_t cbdes, unsigned long bytes)
 
 		/* sync buffer header */
 		if (munlock(buffer, buffer->page_size) < 0) {
-			perror("munlock header");
+			return errno;
 		}
 		if (msync(buffer, buffer->page_size, MS_SYNC) < 0) {
-			perror("msync header");
-			return ERROR_VAL;
+			return errno;
 		}
 		if (mlock(buffer, buffer->page_size) < 0) {
-			perror("mlock header");
+			return errno;
 		}
 	} else {
 		/* advance pointer */
@@ -200,14 +187,13 @@ int cb_tail_adv(cbd_t cbdes, unsigned long bytes)
 	if (CB_PERSISTANT & buffer->oflag) {
 		/* sync buffer header */
 		if (munlock(buffer, buffer->page_size) < 0) {
-			perror("munlock header");
+			return errno;
 		}
 		if (msync(buffer, buffer->page_size, MS_SYNC) < 0) {
-			perror("msync header");
-			return ERROR_VAL;
+			return errno;
 		}
 		if (mlock(buffer, buffer->page_size) < 0) {
-			perror("mlock header");
+			return errno;
 		}
 	}
 
@@ -237,20 +223,18 @@ int cb_sync(cbd_t cbdes)
 	unsigned long pages = (((buffer->head - buffer->tail) / buffer->page_size) + 1) * buffer->page_size;
 
 	if (msync(buffer->address - offset, pages, MS_SYNC) < 0) {
-		perror("msync buffer");
-		return ERROR_VAL;
+		return errno;
 	}
 
 	/* sync buffer header */
 	if (munlock(buffer, buffer->page_size) < 0) {
-		perror("munlock header");
+		return errno;
 	}
 	if (msync(buffer, buffer->page_size, MS_SYNC) < 0) {
-		perror("msync header");
-		return ERROR_VAL;
+		return errno;
 	}
 	if (mlock(buffer, buffer->page_size) < 0) {
-		perror("mlock header");
+		return errno;
 	}
 
 	return 0;
@@ -267,8 +251,7 @@ static unsigned long cb_block_size(char *path)
 {
 	struct statvfs st;
 	if (statvfs(path, &st) < 0) {
-		perror("statvfs");	
-		return ERROR_VAL;
+		return errno;
 	}
 	
 	return (unsigned long)st.f_bsize;
