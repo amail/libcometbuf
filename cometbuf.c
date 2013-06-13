@@ -147,10 +147,11 @@ int cb_head_adv(cbd_t cbdes, unsigned long bytes)
 
 	if (CB_PERSISTANT & buffer->oflag) {
 		/* sync buffer */
-		unsigned long offset = buffer->head % buffer->page_size;
+		unsigned long offset = (buffer->head / buffer->page_size) * buffer->page_size;
 		unsigned long pages = ((bytes / buffer->page_size) + 1) * buffer->page_size;
 
-		if (msync(buffer->address - offset, pages, MS_SYNC) < 0) {
+		if (msync(buffer->address + offset, pages, MS_SYNC) < 0) {
+			perror("msync buffer");
 			return -1;
 		}
 
@@ -221,10 +222,11 @@ int cb_sync(cbd_t cbdes)
 	cb_attr *buffer = (cb_attr *) cbdes;
 
 	/* sync buffer */
-	unsigned long offset = buffer->head % buffer->page_size;
+	unsigned long offset = (buffer->head / buffer->page_size) * buffer->page_size;
 	unsigned long pages = (((buffer->head - buffer->tail) / buffer->page_size) + 1) * buffer->page_size;
 
-	if (msync(buffer->address - offset, pages, MS_SYNC) < 0) {
+	if (msync(buffer->address + offset, pages, MS_SYNC) < 0) {
+		perror("msync buffer");
 		return -1;
 	}
 
