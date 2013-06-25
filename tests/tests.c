@@ -150,7 +150,7 @@ int main ()
 	}
 
 	/* free buffer */
-	if (cb_free(cbd) < 0) {
+	if (cb_close(cbd) < 0) {
 		printf(" * free:\t\t\t[ NO ]\n");
 	} else {
 		printf(" * free:\t\t\t[ OK ]\n");
@@ -206,10 +206,10 @@ int main ()
 	/* cleanup */
 	fclose(fd);
 	free(dummy);
-	cb_free(cbd);
+	cb_close(cbd);
 
 
-	print_header("test 03: wrap around");
+	print_header("test 03: persistance");
 
 	/* open */
 	cbd = cb_open(dummy_size, "/tmp/cometbuf.dump", CB_PERSISTANT);
@@ -248,8 +248,8 @@ int main ()
 
 	/* close it */
 	printf(" * closing /tmp/cometbuf.dump\n");
-	if (cb_free(cbd) < 0) {
-		perror("cb_free");
+	if (cb_close(cbd) < 0) {
+		perror("cb_close");
 		return -1;
 	}
 
@@ -272,5 +272,7 @@ int main ()
 	}
 	printf(" * buffer data\t\t\t[ OK ]\n");
 
+	
+	printf(" test\t[ OK ]\n");
 	return;
 }
